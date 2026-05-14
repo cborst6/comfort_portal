@@ -65,7 +65,7 @@ async function recordOrderInAirtable(payload: OrderPayload): Promise<void> {
 
     return createAirtableRecord('Order Items', {
       'Line Item': lineItemName,
-      'Orders': [orderId],
+      'Order': [orderId],
       'Product': [item.productId],
       'Order Type': orderType,
       'Quantity': item.quantity,
