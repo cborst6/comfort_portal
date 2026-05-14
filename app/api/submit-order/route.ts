@@ -30,13 +30,15 @@ async function createAirtableRecord(
     }
   )
 
+  const data = await res.json()
+
   if (!res.ok) {
-    const err = await res.text()
-    console.error(`Airtable create error (${table}):`, err)
+    console.error(`Airtable create error (${table}):`, JSON.stringify(data))
+    console.error(`Fields sent:`, JSON.stringify(fields))
     return null
   }
 
-  const data = await res.json()
+  console.log(`Airtable created record in ${table}: ${data.id}`)
   return data.id as string
 }
 
@@ -46,10 +48,9 @@ async function recordOrderInAirtable(payload: OrderPayload): Promise<void> {
   // 1. Create the Order record
   const orderId = await createAirtableRecord('Orders', {
     'PO Number': form.poNumber,
-    'Order Date': new Date().toISOString().split('T')[0], // YYYY-MM-DD
+    'Order Date': new Date().toISOString().split('T')[0],
     'Order Status': 'New',
     'Notes': form.notes || '',
-    // Company, Contact, Ship To will be linked once auth is built
   })
 
   if (!orderId) {
@@ -64,8 +65,8 @@ async function recordOrderInAirtable(payload: OrderPayload): Promise<void> {
 
     return createAirtableRecord('Order Items', {
       'Line Item': lineItemName,
-      'Orders': [orderId],           // linked record
-      'Products': [item.productId],  // linked record
+      'Orders': [orderId],
+      'Products': [item.productId],
       'Order Type': orderType,
       'Quantity': item.quantity,
       'Unit Price': item.unitPrice,
@@ -113,12 +114,10 @@ function buildEmailHtml(payload: OrderPayload): string {
 <head><meta charset="utf-8"></head>
 <body style="font-family: Arial, sans-serif; background: #f9fafb; margin: 0; padding: 20px;">
   <div style="max-width: 680px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    
     <div style="background: #2ab9d4; padding: 28px 32px;">
       <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">New Order Received</h1>
       <p style="color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 14px;">PO #${form.poNumber}</p>
     </div>
-
     <div style="padding: 24px 32px; border-bottom: 1px solid #f3f4f6;">
       <h2 style="font-size: 14px; font-weight: 700; color: #1c2333; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.05em;">Client Information</h2>
       <table style="width: 100%; border-collapse: collapse;">
@@ -141,7 +140,6 @@ function buildEmailHtml(payload: OrderPayload): string {
         </tr>` : ''}
       </table>
     </div>
-
     <div style="padding: 24px 32px; border-bottom: 1px solid #f3f4f6;">
       <h2 style="font-size: 14px; font-weight: 700; color: #1c2333; margin: 0 0 16px; text-transform: uppercase; letter-spacing: 0.05em;">Order Items</h2>
       <table style="width: 100%; border-collapse: collapse;">
@@ -158,18 +156,15 @@ function buildEmailHtml(payload: OrderPayload): string {
         <tbody>${itemRows}</tbody>
       </table>
     </div>
-
     <div style="padding: 20px 32px; border-bottom: 1px solid #f3f4f6; text-align: right;">
       <span style="font-size: 15px; color: #6b7280;">Order Total: </span>
       <span style="font-size: 22px; font-weight: 700; color: #2ab9d4;">$${totalCost.toFixed(2)}</span>
     </div>
-
     ${form.notes ? `
     <div style="padding: 20px 32px; border-bottom: 1px solid #f3f4f6;">
       <h2 style="font-size: 14px; font-weight: 700; color: #1c2333; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.05em;">Notes</h2>
       <p style="font-size: 13px; color: #6b7280; margin: 0;">${form.notes}</p>
     </div>` : ''}
-
     <div style="padding: 20px 32px; background: #f9fafb;">
       <p style="font-size: 12px; color: #9ca3af; margin: 0; text-align: center;">
         Comfort Bedding Mfg. · Comfort Portal · PO #${form.poNumber}
@@ -186,7 +181,6 @@ export async function POST(req: NextRequest) {
   try {
     const payload: OrderPayload = await req.json()
 
-    // Run Airtable recording and email in parallel
     const [, emailRes] = await Promise.all([
       recordOrderInAirtable(payload),
       sendEmail(payload),
@@ -195,7 +189,6 @@ export async function POST(req: NextRequest) {
     if (!emailRes.ok) {
       const errText = await emailRes.text()
       console.error('Resend error:', errText)
-      // Order is already recorded in Airtable — don't fail the whole request
       return NextResponse.json({
         success: true,
         warning: 'Order recorded but email failed to send',
